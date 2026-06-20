@@ -69,10 +69,10 @@ export const DOCUMENT_REQUIREMENTS: DocumentReq[] = [
   },
   {
     id: 'doc-2',
-    name: 'Mã số định danh',
-    description: 'Giấy xác nhận thông tin về cư trú (CT07) hoặc thông báo số định danh cá nhân.',
-    tag: 'Thông tin cư trú',
-    tagColor: 'text-sky-600 bg-sky-500/10 border-sky-200',
+    name: 'Phiếu đăng kí dự tuyển',
+    description: 'Phiếu đăng kí dự tuyển tuyển sinh theo mẫu của nhà trường (có chữ kí của phụ huynh).',
+    tag: 'Bắt buộc',
+    tagColor: 'text-amber-600 bg-amber-500/10 border-amber-200',
     iconName: 'badge'
   },
   {
@@ -98,7 +98,7 @@ export const INITIAL_STUDENT_PROFILE: StudentAdmissionForm = {
   phoneNumber: '0912345678',
   email: 'phuhuynh.minhanh@gmail.com',
   birthCertFile: 'giay_khai_sinh_minhanh.pdf',
-  photoFile: 'anh_the_minhanh.png',
+  registrationFormFile: 'don_dang_ky_minhanh.pdf',
   reportCardFile: 'hoc_ba_tieu_hoc_minhanh.pdf',
   status: 'DA_TIEP_NHAN',
   submittedAt: '2026-05-15 14:32:00',

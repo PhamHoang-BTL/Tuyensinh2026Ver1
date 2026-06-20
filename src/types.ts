@@ -16,6 +16,12 @@ export interface DocumentReq {
   iconName: string;
 }
 
+export interface DriveFile {
+  id: string;
+  name: string;
+  webViewLink?: string;
+}
+
 export interface StudentAdmissionForm {
   id: string;
   fullName: string;
@@ -28,9 +34,9 @@ export interface StudentAdmissionForm {
   motherName: string;
   phoneNumber: string;
   email: string;
-  birthCertFile: string | null;
-  photoFile: string | null;
-  reportCardFile: string | null;
+  birthCertFile: DriveFile | string | null;
+  registrationFormFile: DriveFile | string | null;
+  reportCardFile: DriveFile | string | null;
   status: 'DA_TIEP_NHAN' | 'DANG_KIEM_TRA' | 'BO_SUNG_HO_SO';
   submittedAt: string;
   adminNotes?: string;

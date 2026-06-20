@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   School, 
   BookOpen, 
@@ -17,7 +17,6 @@ import {
   X, 
   Info, 
   ChevronRight, 
-  Image as ImageIcon, 
   MapPin, 
   Phone, 
   Mail, 
@@ -33,13 +32,23 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-import { Announcement, StudentAdmissionForm } from './types';
+import { Announcement, StudentAdmissionForm, DriveFile } from './types';
 import { 
   INITIAL_ANNOUNCEMENTS, 
   GENERAL_GUIDELINES, 
   DOCUMENT_REQUIREMENTS, 
   INITIAL_STUDENT_PROFILE 
 } from './data';
+import {
+  initGoogleDrive,
+  requestDriveAccess,
+  uploadFileToDrive,
+  getDriveFileViewUrl,
+  getDriveFileDownloadUrl,
+  isGoogleDriveReady,
+  createDriveFolder,
+  appendToSheet,
+} from './googleDrive';
 
 export default function App() {
   // Navigation & UI States
@@ -67,24 +76,49 @@ export default function App() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
 
-  // Form files state
-  const [birthCertFile, setBirthCertFile] = useState<string | null>(null);
-  const [photoFile, setPhotoFile] = useState<string | null>(null);
-  const [reportCardFile, setReportCardFile] = useState<string | null>(null);
+  // Form files state (stored as Google Drive file info)
+  const [birthCertFile, setBirthCertFile] = useState<DriveFile | null>(null);
+  const [regFormFile, setRegFormFile] = useState<DriveFile | null>(null);
+  const [reportCardFile, setReportCardFile] = useState<DriveFile | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Raw selected files (before Drive upload)
+  const [birthCertRaw, setBirthCertRaw] = useState<File | null>(null);
+  const [regFormRaw, setRegFormRaw] = useState<File | null>(null);
+  const [reportCardRaw, setReportCardRaw] = useState<File | null>(null);
 
   // Submission success state
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Initialize and Seed localStorage with defaults if not present
+  // Hidden file input refs
+  const birthCertInputRef = useRef<HTMLInputElement>(null);
+  const regFormInputRef = useRef<HTMLInputElement>(null);
+  const reportCardInputRef = useRef<HTMLInputElement>(null);
+
+  // Initialize Google Drive and seed localStorage
   useEffect(() => {
+    initGoogleDrive().catch(() => {
+      // Will initialize on demand when user clicks upload
+    });
     const existingStr = localStorage.getItem('btl_admission_profiles');
     if (!existingStr) {
       localStorage.setItem('btl_admission_profiles', JSON.stringify([INITIAL_STUDENT_PROFILE]));
     }
   }, []);
+
+  // Handle file selection (store raw file, upload happens at submit)
+  const handleFileSelect = (type: 'birthCert' | 'regForm' | 'reportCard') => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (type === 'birthCert') setBirthCertRaw(file);
+    else if (type === 'regForm') setRegFormRaw(file);
+    else if (type === 'reportCard') setReportCardRaw(file);
+    triggerToast(`Đã chọn: ${file.name}`);
+    e.target.value = '';
+  };
 
   // Show dynamic system toasts
   const triggerToast = (msg: string) => {
@@ -162,20 +196,21 @@ export default function App() {
   };
 
   // Handle final submission form
-  const handleAdmissionSubmit = (e: React.FormEvent) => {
+  const handleAdmissionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formStep !== 3) return;
 
-    if (!birthCertFile) {
-      triggerToast('Vui lòng tải lên ảnh chụp bản sao Giấy khai sinh.');
+    // Validate files selected
+    if (!birthCertRaw) {
+      triggerToast('Vui lòng chọn ảnh chụp bản sao Giấy khai sinh.');
       return;
     }
-    if (!photoFile) {
-      triggerToast('Vui lòng đính kèm ảnh thẻ học sinh (4x6).');
+    if (!regFormRaw) {
+      triggerToast('Vui lòng chọn Phiếu đăng kí dự tuyển tuyển sinh.');
       return;
     }
-    if (!reportCardFile) {
-      triggerToast('Vui lòng đính kèm file Học bạ lớp 5.');
+    if (!reportCardRaw) {
+      triggerToast('Vui lòng chọn file Học bạ lớp 5.');
       return;
     }
     if (!termsAccepted) {
@@ -183,37 +218,96 @@ export default function App() {
       return;
     }
 
-    // Generate random code BTL26-######
-    const randCode = `BTL26-${Math.floor(100000 + Math.random() * 900000)}`;
-    const newProfile: StudentAdmissionForm = {
-      id: randCode,
-      fullName: fullName.trim(),
-      birthDate,
-      gender: gender as 'male' | 'female',
-      nationalId: nationalId.trim(),
-      graduatedSchool: graduatedSchool.trim(),
-      address: address.trim(),
-      fatherName: fatherName.trim(),
-      motherName: motherName.trim(),
-      phoneNumber: phoneNumber.trim(),
-      email: email.trim(),
-      birthCertFile,
-      photoFile,
-      reportCardFile,
-      status: 'DANG_KIEM_TRA', // Start as Under Review
-      submittedAt: new Date().toLocaleDateString('vi-VN') + ' ' + new Date().toLocaleTimeString('vi-VN'),
-      adminNotes: 'Hồ sơ đã được gửi trực tuyến thành công. Ban tuyển sinh trường THCS Bắc Từ Liêm đang tiến hành hậu kiểm dữ liệu.'
-    };
+    try {
+      // Auth first (before state updates, to keep popup gesture context)
+      if (!isGoogleDriveReady()) {
+        await initGoogleDrive();
+        await requestDriveAccess();
+      }
 
-    // Save
-    const existingStr = localStorage.getItem('btl_admission_profiles');
-    const profiles: StudentAdmissionForm[] = existingStr ? JSON.parse(existingStr) : [INITIAL_STUDENT_PROFILE];
-    profiles.unshift(newProfile);
-    localStorage.setItem('btl_admission_profiles', JSON.stringify(profiles));
+      // Generate random code BTL26-###### first
+      const randCode = `BTL26-${Math.floor(100000 + Math.random() * 900000)}`;
+      const now = new Date();
+      const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
 
-    // Show success dialog
-    setSubmittedCode(randCode);
-    setShowSuccessModal(true);
+      setIsUploading(true);
+      triggerToast('Đang tạo thư mục hồ sơ...');
+
+      // Folder name with timestamp prefix for chronological sorting
+      const folderId = await createDriveFolder(`${ts}_${randCode}`);
+
+      triggerToast('Đang tải Giấy khai sinh...');
+      const birthCertDrive = await uploadFileToDrive(birthCertRaw, folderId);
+
+      triggerToast('Đang tải Phiếu đăng kí dự tuyển...');
+      const regFormDrive = await uploadFileToDrive(regFormRaw, folderId);
+
+      triggerToast('Đang tải Học bạ...');
+      const reportCardDrive = await uploadFileToDrive(reportCardRaw, folderId);
+      const newProfile: StudentAdmissionForm = {
+        id: randCode,
+        fullName: fullName.trim(),
+        birthDate,
+        gender: gender as 'male' | 'female',
+        nationalId: nationalId.trim(),
+        graduatedSchool: graduatedSchool.trim(),
+        address: address.trim(),
+        fatherName: fatherName.trim(),
+        motherName: motherName.trim(),
+        phoneNumber: phoneNumber.trim(),
+        email: email.trim(),
+        birthCertFile: birthCertDrive,
+        registrationFormFile: regFormDrive,
+        reportCardFile: reportCardDrive,
+        status: 'DANG_KIEM_TRA',
+        submittedAt: new Date().toLocaleDateString('vi-VN') + ' ' + new Date().toLocaleTimeString('vi-VN'),
+        adminNotes: 'Hồ sơ đã được gửi trực tuyến thành công. Ban tuyển sinh trường THCS Bắc Từ Liêm đang tiến hành hậu kiểm dữ liệu.'
+      };
+
+      // Save to localStorage
+      const existingStr = localStorage.getItem('btl_admission_profiles');
+      const profiles: StudentAdmissionForm[] = existingStr ? JSON.parse(existingStr) : [INITIAL_STUDENT_PROFILE];
+      profiles.unshift(newProfile);
+      localStorage.setItem('btl_admission_profiles', JSON.stringify(profiles));
+
+      // Save to Google Sheet (non-blocking)
+      triggerToast('Đang lưu thông tin vào Google Sheet...');
+      try {
+        await appendToSheet([
+          randCode,
+          fullName.trim(),
+          birthDate,
+          gender === 'male' ? 'Nam' : 'Nữ',
+          nationalId.trim(),
+          graduatedSchool.trim(),
+          address.trim(),
+          fatherName.trim(),
+          motherName.trim(),
+          phoneNumber.trim(),
+          email.trim(),
+          `https://drive.google.com/file/d/${birthCertDrive.id}/view`,
+          `https://drive.google.com/file/d/${regFormDrive.id}/view`,
+          `https://drive.google.com/file/d/${reportCardDrive.id}/view`,
+          'Đang kiểm tra',
+          newProfile.submittedAt,
+        ]);
+      } catch (sheetErr: any) {
+        console.error('Sheet error (non-blocking):', sheetErr);
+        triggerToast('Lưu Sheet không thành công, nhưng hồ sơ vẫn được ghi nhận.');
+      }
+
+      // Show success dialog
+      setSubmittedCode(randCode);
+      setBirthCertFile(birthCertDrive);
+      setRegFormFile(regFormDrive);
+      setReportCardFile(reportCardDrive);
+      setShowSuccessModal(true);
+      triggerToast('Nộp hồ sơ thành công!');
+    } catch (err: any) {
+      triggerToast(`Lỗi: ${err.message || 'Vui lòng thử lại'}`);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // Clean form state to original to allow quick submitting a fresh new one
@@ -230,8 +324,11 @@ export default function App() {
     setPhoneNumber('');
     setEmail('');
     setBirthCertFile(null);
-    setPhotoFile(null);
+    setRegFormFile(null);
     setReportCardFile(null);
+    setBirthCertRaw(null);
+    setRegFormRaw(null);
+    setReportCardRaw(null);
     setTermsAccepted(false);
     setShowSuccessModal(false);
     setSubmittedCode(null);
@@ -249,18 +346,33 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Mock document trigger
-  const simulateFileAdd = (type: 'birthCert' | 'photo' | 'reportCard', originalName: string) => {
-    if (type === 'birthCert') {
-      setBirthCertFile(originalName);
-      triggerToast('Đã đính kèm Giấy khai sinh thành công');
-    } else if (type === 'photo') {
-      setPhotoFile(originalName);
-      triggerToast('Đã đính kèm ảnh chân dung thẻ 4x6');
-    } else if (type === 'reportCard') {
-      setReportCardFile(originalName);
-      triggerToast('Đã đính kèm Học bạ tiểu học công chứng');
+  // Trigger hidden file input
+  const triggerFileInput = (ref: React.RefObject<HTMLInputElement | null>) => {
+    ref.current?.click();
+  };
+
+  // Helper to extract display name from DriveFile or string
+  const getFileDisplayName = (file: DriveFile | string | null): string | null => {
+    if (!file) return null;
+    if (typeof file === 'object' && 'name' in file) return file.name;
+    if (typeof file === 'string') return file;
+    return null;
+  };
+
+  // Helper to get Google Drive view link
+  const getFileViewLink = (file: DriveFile | string | null): string | null => {
+    if (!file) return null;
+    if (typeof file === 'object') {
+      if ('webViewLink' in file && file.webViewLink) return file.webViewLink;
+      if ('id' in file) return getDriveFileViewUrl(file.id);
     }
+    return null;
+  };
+
+  const getFileDownloadLink = (file: DriveFile | string | null): string | null => {
+    if (!file || typeof file !== 'object') return null;
+    if ('id' in file) return getDriveFileDownloadUrl(file.id);
+    return null;
   };
 
   return (
@@ -955,51 +1067,55 @@ export default function App() {
                             Bản sao Giấy khai sinh hợp lệ <span className="text-red-500">*</span>
                           </p>
                           <p className="text-[10px] text-slate-500 mt-0.5">Yêu cầu định dạng: PDF, JPG, PNG (Tép nhỏ hơn 5MB)</p>
-                          {birthCertFile && (
+                          {birthCertRaw && (
                             <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-bold mt-1.5 bg-emerald-50 px-2 py-0.5 rounded">
-                              <Check className="w-3.5 h-3.5" /> Đã nhận: {birthCertFile}
+                              <Check className="w-3.5 h-3.5" /> {birthCertRaw.name}
                             </span>
                           )}
                         </div>
                       </div>
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        ref={birthCertInputRef}
+                        onChange={handleFileSelect('birthCert')}
+                        className="hidden"
+                      />
                       <button 
                         type="button"
-                        onClick={() => simulateFileAdd('birthCert', `giay-khai-sinh-${fullName.toLowerCase().replace(/\s+/g, '-') || 'hoc-sinh'}.pdf`)}
+                        disabled={isUploading}
+                        onClick={() => triggerFileInput(birthCertInputRef)}
                         className={`text-xs px-4 py-2 font-bold rounded-xl transition-all cursor-pointer ${
-                          birthCertFile ? 'bg-emerald-600 text-white shadow-sm' : 'bg-primary hover:bg-primary-light text-white'
+                          isUploading ? 'bg-slate-300 text-slate-500 cursor-not-allowed' :
+                          birthCertRaw ? 'bg-emerald-600 text-white shadow-sm' : 'bg-primary hover:bg-primary-light text-white'
                         }`}
                       >
-                        {birthCertFile ? 'Tải tệp khác' : 'Chọn tệp đính kèm'}
+                        {isUploading ? 'Đang tải...' : birthCertRaw ? 'Chọn tệp khác' : 'Chọn tệp đính kèm'}
                       </button>
                     </div>
 
-                    {/* Panel 2: Picture 4x6 */}
+                    {/* Panel 2: Registration Form */}
                     <div className="p-4 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div className="flex items-start gap-3">
                         <div className="p-2.5 bg-primary/5 text-primary rounded-xl shrink-0 mt-0.5">
-                          <ImageIcon className="w-5 h-5" />
+                          <FileText className="w-5 h-5" />
                         </div>
                         <div>
                           <p className="font-bold text-xs text-slate-800">
-                            Ảnh thẻ học sinh cỡ (4x6) <span className="text-red-500">*</span>
+                            Phiếu đăng kí dự tuyển tuyển sinh <span className="text-red-500">*</span>
                           </p>
-                          <p className="text-[10px] text-slate-500 mt-0.5">Ảnh chân dung, font nền xanh hoặc trắng, lộ rõ tai mắt học sinh</p>
-                          {photoFile && (
+                          <p className="text-[10px] text-slate-500 mt-0.5">Phiếu đăng kí dự tuyển theo mẫu của nhà trường, có chữ kí của phụ huynh</p>
+                          {regFormRaw && (
                             <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-bold mt-1.5 bg-emerald-50 px-2 py-0.5 rounded">
-                              <Check className="w-3.5 h-3.5" /> Đã nhận: {photoFile}
+                              <Check className="w-3.5 h-3.5" /> {regFormRaw.name}
                             </span>
                           )}
                         </div>
                       </div>
-                      <button 
-                        type="button"
-                        onClick={() => simulateFileAdd('photo', `anh-ca-nhan-${fullName.toLowerCase().replace(/\s+/g, '-') || 'hoc-sinh'}.png`)}
-                        className={`text-xs px-4 py-2 font-bold rounded-xl transition-all cursor-pointer ${
-                          photoFile ? 'bg-emerald-600 text-white shadow-sm' : 'bg-primary hover:bg-primary-light text-white'
-                        }`}
-                      >
-                        {photoFile ? 'Tải tệp khác' : 'Chọn tệp đính kèm'}
-                      </button>
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" ref={regFormInputRef} onChange={handleFileSelect('regForm')} className="hidden" />
+                      <button type="button" disabled={isUploading} onClick={() => triggerFileInput(regFormInputRef)}
+                        className={`text-xs px-4 py-2 font-bold rounded-xl transition-all cursor-pointer ${isUploading ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : regFormRaw ? 'bg-emerald-600 text-white shadow-sm' : 'bg-primary hover:bg-primary-light text-white'}`}
+                      >{isUploading ? 'Đang tải...' : regFormRaw ? 'Chọn tệp khác' : 'Chọn tệp đính kèm'}</button>
                     </div>
 
                     {/* Panel 3: Primary Report Card */}
@@ -1013,22 +1129,17 @@ export default function App() {
                             Học bạ Tiểu học gốc (quyết định lớp 5) <span className="text-red-500">*</span>
                           </p>
                           <p className="text-[10px] text-slate-500 mt-0.5">Scan toàn bộ học bạ hoặc thư xác nhận kết quả học tập tiểu học</p>
-                          {reportCardFile && (
+                          {reportCardRaw && (
                             <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-bold mt-1.5 bg-emerald-50 px-2 py-0.5 rounded">
-                              <Check className="w-3.5 h-3.5" /> Đã nhận: {reportCardFile}
+                              <Check className="w-3.5 h-3.5" /> {reportCardRaw.name}
                             </span>
                           )}
                         </div>
                       </div>
-                      <button 
-                        type="button"
-                        onClick={() => simulateFileAdd('reportCard', `hoc-ba-tieu-hoc-${fullName.toLowerCase().replace(/\s+/g, '-') || 'hoc-sinh'}.pdf`)}
-                        className={`text-xs px-4 py-2 font-bold rounded-xl transition-all cursor-pointer ${
-                          reportCardFile ? 'bg-emerald-600 text-white shadow-sm' : 'bg-primary hover:bg-primary-light text-white'
-                        }`}
-                      >
-                        {reportCardFile ? 'Tải tệp khác' : 'Chọn tệp đính kèm'}
-                      </button>
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" ref={reportCardInputRef} onChange={handleFileSelect('reportCard')} className="hidden" />
+                      <button type="button" disabled={isUploading} onClick={() => triggerFileInput(reportCardInputRef)}
+                        className={`text-xs px-4 py-2 font-bold rounded-xl transition-all cursor-pointer ${isUploading ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : reportCardRaw ? 'bg-emerald-600 text-white shadow-sm' : 'bg-primary hover:bg-primary-light text-white'}`}
+                      >{isUploading ? 'Đang tải...' : reportCardRaw ? 'Chọn tệp khác' : 'Chọn tệp đính kèm'}</button>
                     </div>
                   </div>
 
@@ -1052,6 +1163,7 @@ export default function App() {
                     <button 
                       type="button" 
                       onClick={prevStep}
+                      disabled={isUploading}
                       className="bg-slate-50 hover:bg-slate-100 text-slate-700 px-5 py-2.5 rounded-full flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <ArrowLeft className="w-3.5 h-3.5" /> Quay lại bước 2
@@ -1059,9 +1171,10 @@ export default function App() {
                     
                     <button 
                       type="submit"
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-3 rounded-full flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all text-sm cursor-pointer"
+                      disabled={isUploading}
+                      className={`px-10 py-3 rounded-full flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all text-sm cursor-pointer ${isUploading ? 'bg-slate-400 text-white cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}
                     >
-                      <CheckCircle className="w-4 h-4" /> Xác nhận nộp hồ sơ ngay
+                      <CheckCircle className="w-4 h-4" /> {isUploading ? 'Đang tải lên Google Drive...' : 'Xác nhận nộp hồ sơ ngay'}
                     </button>
                   </div>
                 </div>
@@ -1183,8 +1296,40 @@ export default function App() {
                            'Vui lòng đính kèm bổ sung minh chứng'}
                         </h4>
                         <p className="text-xs text-slate-500 leading-relaxed mt-2">
-                          Hệ thống đã mã hóa an toàn các tài liệu đính kèm ({checkedProfile.birthCertFile}), ({checkedProfile.photoFile}) và ({checkedProfile.reportCardFile}). Quy trình đối soát đang hoạt động bình thường.
+                          Tài liệu đính kèm hồ sơ:
                         </p>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {checkedProfile.birthCertFile && (
+                            <a
+                              href={getFileDownloadLink(checkedProfile.birthCertFile) || '#'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-[11px] text-primary font-bold bg-primary/5 px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
+                            >
+                              <FileText className="w-3.5 h-3.5" /> Giấy khai sinh
+                            </a>
+                          )}
+                          {checkedProfile.registrationFormFile && (
+                            <a
+                              href={getFileDownloadLink(checkedProfile.registrationFormFile) || '#'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-[11px] text-primary font-bold bg-primary/5 px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
+                            >
+                              <FileText className="w-3.5 h-3.5" /> Phiếu đăng kí dự tuyển
+                            </a>
+                          )}
+                          {checkedProfile.reportCardFile && (
+                            <a
+                              href={getFileDownloadLink(checkedProfile.reportCardFile) || '#'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-[11px] text-primary font-bold bg-primary/5 px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
+                            >
+                              <BookOpen className="w-3.5 h-3.5" /> Học bạ
+                            </a>
+                          )}
+                        </div>
                       </div>
 
                       {/* Admin Remarks notes */}
