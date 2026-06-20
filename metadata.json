@@ -1,0 +1,6 @@
+{
+  "name": "Cổng Tuyển Sinh THCS Bắc Từ Liêm",
+  "description": "Cổng tuyển sinh trực tuyến lớp 6 THCS Bắc Từ Liêm: Hướng dẫn quy trình, nộp hồ sơ trực tuyến, tra cứu kết quả tuyển sinh tiện lợi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
