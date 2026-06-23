@@ -34,9 +34,25 @@ export interface StudentAdmissionForm {
   motherName: string;
   phoneNumber: string;
   email: string;
-  birthCertFile: DriveFile | string | null;
-  registrationFormFile: DriveFile | string | null;
-  reportCardFile: DriveFile | string | null;
+  // Scores
+  grade1Math: string;
+  grade1Viet: string;
+  grade2Math: string;
+  grade2Viet: string;
+  grade3Math: string;
+  grade3Viet: string;
+  grade3Eng: string;
+  grade4Math: string;
+  grade4Viet: string;
+  grade4Eng: string;
+  grade5Math: string;
+  grade5Viet: string;
+  grade5Eng: string;
+  strengths: string;
+  // Files
+  birthCertFiles: DriveFile[];
+  registrationFormFiles: DriveFile[];
+  reportCardFiles: DriveFile[];
   status: 'DA_TIEP_NHAN' | 'DANG_KIEM_TRA' | 'BO_SUNG_HO_SO';
   submittedAt: string;
   adminNotes?: string;

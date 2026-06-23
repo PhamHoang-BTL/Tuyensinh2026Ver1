@@ -79,7 +79,11 @@ export async function createDriveFolder(folderName: string): Promise<string> {
       ...(DRIVE_FOLDER_ID && { parents: [DRIVE_FOLDER_ID] }),
     }),
   });
-  if (!res.ok) throw new Error(`Lỗi tạo thư mục (${res.status})`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    console.error('[Drive] Tạo thư mục thất bại:', res.status, body);
+    throw new Error(`Lỗi tạo thư mục (${res.status}): ${body.slice(0,200)}`);
+  }
   const data = await res.json();
   return data.id;
 }
@@ -105,7 +109,9 @@ export async function uploadFileToDrive(file: File, folderId?: string): Promise<
     }),
   });
   if (!createRes.ok) {
-    throw new Error(`Lỗi tạo file (${createRes.status})`);
+    const body = await createRes.text().catch(() => '');
+    console.error('[Drive] Tạo file thất bại:', createRes.status, body);
+    throw new Error(`Lỗi tạo file (${createRes.status}): ${body.slice(0,200)}`);
   }
   const fileMeta = await createRes.json();
 
@@ -119,7 +125,9 @@ export async function uploadFileToDrive(file: File, folderId?: string): Promise<
     body: file,
   });
   if (!uploadRes.ok) {
-    throw new Error(`Lỗi upload (${uploadRes.status})`);
+    const body = await uploadRes.text().catch(() => '');
+    console.error('[Drive] Upload file thất bại:', uploadRes.status, body);
+    throw new Error(`Lỗi upload (${uploadRes.status}): ${body.slice(0,200)}`);
   }
 
   // Step 3: Public permission (non-blocking)
@@ -193,7 +201,11 @@ export async function appendToSheet(values: string[]): Promise<void> {
       }),
     }
   );
-  if (!res.ok) throw new Error(`Lỗi ghi Sheet (${res.status})`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    console.error('[Sheet] Ghi thất bại:', res.status, body);
+    throw new Error(`Lỗi ghi Sheet (${res.status}): ${body.slice(0,200)}`);
+  }
 }
 
 export function revokeDriveAccess(): void {

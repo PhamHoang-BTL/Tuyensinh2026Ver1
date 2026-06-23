@@ -7,7 +7,7 @@ export const INITIAL_ANNOUNCEMENTS: Announcement[] = [
     date: '15/05/2026',
     month: '05',
     type: 'QUAN_TRỌNG',
-    content: 'Để thuận tiện cho phụ huynh nộp hồ sơ, Nhà trường hướng dẫn cụ thể các thao tác trên cổng thông tin trực tuyến THCS Bắc Từ Liêm. Hệ thống sẽ chính thức mở nhận đăng ký từ ngày 20/06/2026 đến hết 17:00 ngày 01/07/2026. Phụ huynh cần chuẩn bị file scan hoặc ảnh chụp rõ nét của Giấy khai sinh, Học bạ tiểu học và Thông báo số định danh cá nhân.'
+    content: 'Để thuận tiện cho phụ huynh nộp hồ sơ, Nhà trường hướng dẫn cụ thể các thao tác trên cổng thông tin trực tuyến THCS Bắc Từ Liêm. Hệ thống sẽ chính thức mở nhận đăng ký từ ngày 01/07/2026 đến hết 17:00 ngày 03/07/2026. Phụ huynh cần chuẩn bị file scan hoặc ảnh chụp rõ nét của Giấy khai sinh, Học bạ tiểu học và Thông báo số định danh cá nhân.'
   },
   {
     id: 'ann-2',
@@ -15,46 +15,38 @@ export const INITIAL_ANNOUNCEMENTS: Announcement[] = [
     date: '10/05/2026',
     month: '05',
     type: 'THÔNG BÁO',
-    content: 'Ban tuyển sinh Trường THCS Bắc Từ Liêm thông báo danh mục tài liệu bắt buộc bao gồm: 1. Bản sao khai sinh hợp lệ; 2. Học bạ tiểu học bản gốc (hoặc xác nhận hoàn thành chương trình tương đương); 3. Giấy xác nhận thông tin về cư trú (mẫu CT07) hoặc thông báo mã số định danh học sinh. Vui lòng đối chiếu kỹ thông tin trên hệ thống trước khi gửi.'
-  },
-  {
-    id: 'ann-3',
-    title: 'Kế hoạch khảo sát năng lực đầu vào đợt 1 năm học 2026-2027',
-    date: '28/04/2026',
-    month: '04',
-    type: 'LỊCH THI',
-    content: 'Trường THCS Bắc Từ Liêm tổ chức khảo sát năng lực đầu vào đối với học sinh đăng ký xét tuyển lớp Chất lượng cao. Đợt 1 kiểm tra 3 môn Toán, Tiếng Việt và Tiếng Anh dự kiến diễn ra vào sáng ngày 15/06/2026. Danh sách phòng thi và số báo danh của học sinh sẽ được công bố trước ngày 10/06/2026 trực tiếp trên cổng tra cứu của trường.'
+    content: 'Ban tuyển sinh Trường THCS Bắc Từ Liêm thông báo danh mục tài liệu bắt buộc bao gồm: 1. Đơn đăng kí dự tuyển (theo mẫu); 2. Bản sao giấy khai sinh hợp lệ (khi nộp cần mang kèm bản chính để đối chiếu); 3. Học bạ tiểu học bản gốc; 4. Xác nhận thông tin cư trú (hình ảnh trên VNEID, ...); 5. Giấy tờ ưu tiên khác (nếu có). Vui lòng đối chiếu kĩ thông tin trên hệ thống trước khi gửi.'
   }
 ];
 
 export const GENERAL_GUIDELINES = [
   {
     step: 1,
-    title: 'Tạo tài khoản',
-    icon: 'person_add',
-    bg: 'bg-sky-500/10 text-sky-600',
-    description: 'Truy cập vào hệ thống và đăng ký tài khoản bằng số điện thoại của phụ huynh hoặc mã học sinh. Đảm bảo thông tin liên lạc chính xác để nhận thông báo từ trường.'
-  },
-  {
-    step: 2,
     title: 'Kê khai thông tin',
     icon: 'edit_square',
     bg: 'bg-amber-500/10 text-amber-600',
     description: 'Điền đầy đủ thông tin cá nhân của học sinh, thông tin gia đình và lịch sử học tập. Kiểm tra kỹ các thông tin về giải thưởng hoặc thành tích đặc biệt (nếu có).'
   },
   {
-    step: 3,
+    step: 2,
     title: 'Tải lên hồ sơ',
     icon: 'cloud_upload',
     bg: 'bg-emerald-500/10 text-emerald-600',
     description: 'Chụp ảnh hoặc scan các giấy tờ gốc theo yêu cầu (Giấy khai sinh, Học bạ, CCCD/Mã số định danh). Đảm bảo file hình ảnh rõ nét, không bị mất góc.'
   },
   {
+    step: 3,
+    title: 'Xác thực Google Drive',
+    icon: 'cloud',
+    bg: 'bg-red-500/10 text-red-600',
+    description: 'Khi hệ thống yêu cầu xác thực Google, quý phụ huynh vui lòng bấm "Nâng cao" → "Đi tới TS2026 (không an toàn)" để cấp quyền lưu trữ hồ sơ lên Google Drive của nhà trường.'
+  },
+  {
     step: 4,
     title: 'Theo dõi kết quả',
     icon: 'event_note',
     bg: 'bg-indigo-500/10 text-indigo-600',
-    description: 'Sau khi nhấn "Gửi hồ sơ", hệ thống sẽ gửi xác nhận qua SMS/Email. Phụ huynh có thể tra cứu trạng thái xét tuyển bất cứ lúc nào tại mục "Tra cứu".'
+    description: 'Sau khi nhấn "Gửi hồ sơ", hệ thống sẽ gửi xác nhận qua SMS/Email. Phụ huynh có thể tra cứu trạng thái xét tuyển bất cứ lúc nào tại mục "Tra cứu". Lưu lại mã hồ sơ để theo dõi kết quả.'
   }
 ];
 
@@ -92,14 +84,28 @@ export const INITIAL_STUDENT_PROFILE: StudentAdmissionForm = {
   gender: 'female',
   nationalId: '001150043924',
   graduatedSchool: 'Tiểu học Bắc Từ Liêm',
-  address: 'TDP Trung 7, Tây Tựu, Quận Bắc Từ Liêm, Hà Nội',
+  address: 'TDP Trung 7, phường Tây Tựu, Thành phố Hà Nội',
   fatherName: 'Nguyễn Công Thắng',
   motherName: 'Lê Minh Hằng',
   phoneNumber: '0912345678',
   email: 'phuhuynh.minhanh@gmail.com',
-  birthCertFile: 'giay_khai_sinh_minhanh.pdf',
-  registrationFormFile: 'don_dang_ky_minhanh.pdf',
-  reportCardFile: 'hoc_ba_tieu_hoc_minhanh.pdf',
+  grade1Math: '8',
+  grade1Viet: '9',
+  grade2Math: '8',
+  grade2Viet: '9',
+  grade3Math: '9',
+  grade3Viet: '8',
+  grade3Eng: '9',
+  grade4Math: '9',
+  grade4Viet: '9',
+  grade4Eng: '9',
+  grade5Math: '10',
+  grade5Viet: '9',
+  grade5Eng: '10',
+  strengths: 'Giải Nhì môn Toán cấp Quận lớp 4, Giải Ba Tiếng Anh cấp TP lớp 5',
+  birthCertFiles: [{ id: 'sample-bc-1', name: 'giay_khai_sinh_minhanh.pdf' }],
+  registrationFormFiles: [{ id: 'sample-rf-1', name: 'don_dang_ky_minhanh.pdf' }],
+  reportCardFiles: [{ id: 'sample-rc-1', name: 'hoc_ba_tieu_hoc_minhanh.pdf' }],
   status: 'DA_TIEP_NHAN',
   submittedAt: '2026-05-15 14:32:00',
   adminNotes: 'Phụ huynh vui lòng theo dõi thông báo tiếp theo về lịch phỏng vấn năng khiếu vào ngày 20/05/2026 qua email cá nhân.'

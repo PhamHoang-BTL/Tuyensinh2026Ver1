@@ -76,17 +76,35 @@ export default function App() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
 
+  // Score states
+  const [g1Math, setG1Math] = useState('');
+  const [g1Viet, setG1Viet] = useState('');
+  const [g2Math, setG2Math] = useState('');
+  const [g2Viet, setG2Viet] = useState('');
+  const [g3Math, setG3Math] = useState('');
+  const [g3Viet, setG3Viet] = useState('');
+  const [g3Eng, setG3Eng] = useState('');
+  const [g4Math, setG4Math] = useState('');
+  const [g4Viet, setG4Viet] = useState('');
+  const [g4Eng, setG4Eng] = useState('');
+  const [g5Math, setG5Math] = useState('');
+  const [g5Viet, setG5Viet] = useState('');
+  const [g5Eng, setG5Eng] = useState('');
+
+  // Strengths
+  const [strengths, setStrengths] = useState('');
+
   // Form files state (stored as Google Drive file info)
-  const [birthCertFile, setBirthCertFile] = useState<DriveFile | null>(null);
-  const [regFormFile, setRegFormFile] = useState<DriveFile | null>(null);
-  const [reportCardFile, setReportCardFile] = useState<DriveFile | null>(null);
+  const [birthCertFiles, setBirthCertFiles] = useState<DriveFile[]>([]);
+  const [regFormFiles, setRegFormFiles] = useState<DriveFile[]>([]);
+  const [reportCardFiles, setReportCardFiles] = useState<DriveFile[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
   // Raw selected files (before Drive upload)
-  const [birthCertRaw, setBirthCertRaw] = useState<File | null>(null);
-  const [regFormRaw, setRegFormRaw] = useState<File | null>(null);
-  const [reportCardRaw, setReportCardRaw] = useState<File | null>(null);
+  const [birthCertRaw, setBirthCertRaw] = useState<File[]>([]);
+  const [regFormRaw, setRegFormRaw] = useState<File[]>([]);
+  const [reportCardRaw, setReportCardRaw] = useState<File[]>([]);
 
   // Submission success state
   const [submittedCode, setSubmittedCode] = useState<string | null>(null);
@@ -100,8 +118,8 @@ export default function App() {
 
   // Initialize Google Drive and seed localStorage
   useEffect(() => {
-    initGoogleDrive().catch(() => {
-      // Will initialize on demand when user clicks upload
+    initGoogleDrive().catch((err) => {
+      console.warn('[Drive] Init deferred:', err.message);
     });
     const existingStr = localStorage.getItem('btl_admission_profiles');
     if (!existingStr) {
@@ -111,13 +129,20 @@ export default function App() {
 
   // Handle file selection (store raw file, upload happens at submit)
   const handleFileSelect = (type: 'birthCert' | 'regForm' | 'reportCard') => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (type === 'birthCert') setBirthCertRaw(file);
-    else if (type === 'regForm') setRegFormRaw(file);
-    else if (type === 'reportCard') setReportCardRaw(file);
-    triggerToast(`Đã chọn: ${file.name}`);
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const newFiles = Array.from(files);
+    if (type === 'birthCert') setBirthCertRaw(prev => [...prev, ...newFiles]);
+    else if (type === 'regForm') setRegFormRaw(prev => [...prev, ...newFiles]);
+    else if (type === 'reportCard') setReportCardRaw(prev => [...prev, ...newFiles]);
+    triggerToast(`Đã chọn ${newFiles.length} tệp`);
     e.target.value = '';
+  };
+
+  const removeFile = (type: 'birthCert' | 'regForm' | 'reportCard', index: number) => {
+    if (type === 'birthCert') setBirthCertRaw(prev => prev.filter((_, i) => i !== index));
+    else if (type === 'regForm') setRegFormRaw(prev => prev.filter((_, i) => i !== index));
+    else if (type === 'reportCard') setReportCardRaw(prev => prev.filter((_, i) => i !== index));
   };
 
   // Show dynamic system toasts
@@ -201,15 +226,15 @@ export default function App() {
     if (formStep !== 3) return;
 
     // Validate files selected
-    if (!birthCertRaw) {
+    if (birthCertRaw.length === 0) {
       triggerToast('Vui lòng chọn ảnh chụp bản sao Giấy khai sinh.');
       return;
     }
-    if (!regFormRaw) {
+    if (regFormRaw.length === 0) {
       triggerToast('Vui lòng chọn Phiếu đăng kí dự tuyển tuyển sinh.');
       return;
     }
-    if (!reportCardRaw) {
+    if (reportCardRaw.length === 0) {
       triggerToast('Vui lòng chọn file Học bạ lớp 5.');
       return;
     }
@@ -237,13 +262,13 @@ export default function App() {
       const folderId = await createDriveFolder(`${ts}_${randCode}`);
 
       triggerToast('Đang tải Giấy khai sinh...');
-      const birthCertDrive = await uploadFileToDrive(birthCertRaw, folderId);
+      const birthCertDrive = await Promise.all(birthCertRaw.map(f => uploadFileToDrive(f, folderId)));
 
       triggerToast('Đang tải Phiếu đăng kí dự tuyển...');
-      const regFormDrive = await uploadFileToDrive(regFormRaw, folderId);
+      const regFormDrive = await Promise.all(regFormRaw.map(f => uploadFileToDrive(f, folderId)));
 
       triggerToast('Đang tải Học bạ...');
-      const reportCardDrive = await uploadFileToDrive(reportCardRaw, folderId);
+      const reportCardDrive = await Promise.all(reportCardRaw.map(f => uploadFileToDrive(f, folderId)));
       const newProfile: StudentAdmissionForm = {
         id: randCode,
         fullName: fullName.trim(),
@@ -256,9 +281,23 @@ export default function App() {
         motherName: motherName.trim(),
         phoneNumber: phoneNumber.trim(),
         email: email.trim(),
-        birthCertFile: birthCertDrive,
-        registrationFormFile: regFormDrive,
-        reportCardFile: reportCardDrive,
+        grade1Math: g1Math,
+        grade1Viet: g1Viet,
+        grade2Math: g2Math,
+        grade2Viet: g2Viet,
+        grade3Math: g3Math,
+        grade3Viet: g3Viet,
+        grade3Eng: g3Eng,
+        grade4Math: g4Math,
+        grade4Viet: g4Viet,
+        grade4Eng: g4Eng,
+        grade5Math: g5Math,
+        grade5Viet: g5Viet,
+        grade5Eng: g5Eng,
+        strengths: strengths.trim(),
+        birthCertFiles: birthCertDrive,
+        registrationFormFiles: regFormDrive,
+        reportCardFiles: reportCardDrive,
         status: 'DANG_KIEM_TRA',
         submittedAt: new Date().toLocaleDateString('vi-VN') + ' ' + new Date().toLocaleTimeString('vi-VN'),
         adminNotes: 'Hồ sơ đã được gửi trực tuyến thành công. Ban tuyển sinh trường THCS Bắc Từ Liêm đang tiến hành hậu kiểm dữ liệu.'
@@ -285,9 +324,12 @@ export default function App() {
           motherName.trim(),
           phoneNumber.trim(),
           email.trim(),
-          `https://drive.google.com/file/d/${birthCertDrive.id}/view`,
-          `https://drive.google.com/file/d/${regFormDrive.id}/view`,
-          `https://drive.google.com/file/d/${reportCardDrive.id}/view`,
+          g1Math, g1Viet, g2Math, g2Viet, g3Math, g3Viet, g3Eng, g4Math, g4Viet, g4Eng, g5Math, g5Viet, g5Eng,
+          (() => { const v=[g1Math,g1Viet,g2Math,g2Viet,g3Math,g3Viet,g3Eng,g4Math,g4Viet,g4Eng,g5Math,g5Viet,g5Eng]; return v.reduce((s,x)=>s+(parseFloat(x)||0),0).toFixed(1); })(),
+          strengths.trim(),
+          birthCertDrive.map(f => `https://drive.google.com/file/d/${f.id}/view`).join('\n'),
+          regFormDrive.map(f => `https://drive.google.com/file/d/${f.id}/view`).join('\n'),
+          reportCardDrive.map(f => `https://drive.google.com/file/d/${f.id}/view`).join('\n'),
           'Đang kiểm tra',
           newProfile.submittedAt,
         ]);
@@ -298,9 +340,9 @@ export default function App() {
 
       // Show success dialog
       setSubmittedCode(randCode);
-      setBirthCertFile(birthCertDrive);
-      setRegFormFile(regFormDrive);
-      setReportCardFile(reportCardDrive);
+      setBirthCertFiles(birthCertDrive);
+      setRegFormFiles(regFormDrive);
+      setReportCardFiles(reportCardDrive);
       setShowSuccessModal(true);
       triggerToast('Nộp hồ sơ thành công!');
     } catch (err: any) {
@@ -323,12 +365,17 @@ export default function App() {
     setMotherName('');
     setPhoneNumber('');
     setEmail('');
-    setBirthCertFile(null);
-    setRegFormFile(null);
-    setReportCardFile(null);
-    setBirthCertRaw(null);
-    setRegFormRaw(null);
-    setReportCardRaw(null);
+    setG1Math(''); setG1Viet(''); setG2Math(''); setG2Viet('');
+    setG3Math(''); setG3Viet(''); setG3Eng('');
+    setG4Math(''); setG4Viet(''); setG4Eng('');
+    setG5Math(''); setG5Viet(''); setG5Eng('');
+    setStrengths('');
+    setBirthCertFiles([]);
+    setRegFormFiles([]);
+    setReportCardFiles([]);
+    setBirthCertRaw([]);
+    setRegFormRaw([]);
+    setReportCardRaw([]);
     setTermsAccepted(false);
     setShowSuccessModal(false);
     setSubmittedCode(null);
@@ -590,7 +637,7 @@ export default function App() {
                 </div>
                 <div>
                   <span className="text-[11px] text-slate-400 font-bold uppercase tracking-widest">Thời gian nhận hồ sơ</span>
-                  <p className="text-2xl font-black text-slate-900 leading-tight mt-0.5">20/06 — 01/07</p>
+                   <p className="text-2xl font-black text-slate-900 leading-tight mt-0.5">01/07 — 03/07</p>
                   <p className="text-[11px] text-slate-500 leading-tight mt-1 font-medium">Năm học 2026 (Nhận song song trực tuyến và trực tiếp tại trường Đợt 1)</p>
                 </div>
               </div>
@@ -956,6 +1003,63 @@ export default function App() {
                     </div>
                   </div>
 
+                  {/* SCORES SECTION */}
+                  <div className="border-b border-slate-100 pb-3 flex items-center gap-2 pt-2">
+                    <span className="text-primary text-lg font-bold shrink-0">📊</span>
+                    <h3 className="font-bold text-sm md:text-base text-slate-900">Bảng Điểm Tiểu Học</h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-[11px] border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50">
+                          <th className="border border-slate-200 p-2 text-left font-bold text-slate-700">Môn</th>
+                          <th className="border border-slate-200 p-2 text-center font-bold text-slate-700">Lớp 1</th>
+                          <th className="border border-slate-200 p-2 text-center font-bold text-slate-700">Lớp 2</th>
+                          <th className="border border-slate-200 p-2 text-center font-bold text-slate-700">Lớp 3</th>
+                          <th className="border border-slate-200 p-2 text-center font-bold text-slate-700">Lớp 4</th>
+                          <th className="border border-slate-200 p-2 text-center font-bold text-slate-700">Lớp 5</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td className="border border-slate-200 p-2 font-medium text-slate-700">Toán</td>
+                          <td className="border border-slate-200 p-2"><input type="number" min="0" max="10" step="0.5" value={g1Math} onChange={e => setG1Math(e.target.value)} className="w-16 px-2 py-1 text-center bg-slate-50 border border-slate-200 rounded focus:outline-none focus:border-primary" /></td>
+                          <td className="border border-slate-200 p-2"><input type="number" min="0" max="10" step="0.5" value={g2Math} onChange={e => setG2Math(e.target.value)} className="w-16 px-2 py-1 text-center bg-slate-50 border border-slate-200 rounded focus:outline-none focus:border-primary" /></td>
+                          <td className="border border-slate-200 p-2"><input type="number" min="0" max="10" step="0.5" value={g3Math} onChange={e => setG3Math(e.target.value)} className="w-16 px-2 py-1 text-center bg-slate-50 border border-slate-200 rounded focus:outline-none focus:border-primary" /></td>
+                          <td className="border border-slate-200 p-2"><input type="number" min="0" max="10" step="0.5" value={g4Math} onChange={e => setG4Math(e.target.value)} className="w-16 px-2 py-1 text-center bg-slate-50 border border-slate-200 rounded focus:outline-none focus:border-primary" /></td>
+                          <td className="border border-slate-200 p-2"><input type="number" min="0" max="10" step="0.5" value={g5Math} onChange={e => setG5Math(e.target.value)} className="w-16 px-2 py-1 text-center bg-slate-50 border border-slate-200 rounded focus:outline-none focus:border-primary" /></td>
+                        </tr>
+                        <tr>
+                          <td className="border border-slate-200 p-2 font-medium text-slate-700">Tiếng Việt</td>
+                          <td className="border border-slate-200 p-2"><input type="number" min="0" max="10" step="0.5" value={g1Viet} onChange={e => setG1Viet(e.target.value)} className="w-16 px-2 py-1 text-center bg-slate-50 border border-slate-200 rounded focus:outline-none focus:border-primary" /></td>
+                          <td className="border border-slate-200 p-2"><input type="number" min="0" max="10" step="0.5" value={g2Viet} onChange={e => setG2Viet(e.target.value)} className="w-16 px-2 py-1 text-center bg-slate-50 border border-slate-200 rounded focus:outline-none focus:border-primary" /></td>
+                          <td className="border border-slate-200 p-2"><input type="number" min="0" max="10" step="0.5" value={g3Viet} onChange={e => setG3Viet(e.target.value)} className="w-16 px-2 py-1 text-center bg-slate-50 border border-slate-200 rounded focus:outline-none focus:border-primary" /></td>
+                          <td className="border border-slate-200 p-2"><input type="number" min="0" max="10" step="0.5" value={g4Viet} onChange={e => setG4Viet(e.target.value)} className="w-16 px-2 py-1 text-center bg-slate-50 border border-slate-200 rounded focus:outline-none focus:border-primary" /></td>
+                          <td className="border border-slate-200 p-2"><input type="number" min="0" max="10" step="0.5" value={g5Viet} onChange={e => setG5Viet(e.target.value)} className="w-16 px-2 py-1 text-center bg-slate-50 border border-slate-200 rounded focus:outline-none focus:border-primary" /></td>
+                        </tr>
+                        <tr>
+                          <td className="border border-slate-200 p-2 font-medium text-slate-700">Tiếng Anh</td>
+                          <td className="border border-slate-200 p-2 text-center text-slate-400 text-[10px]">—</td>
+                          <td className="border border-slate-200 p-2 text-center text-slate-400 text-[10px]">—</td>
+                          <td className="border border-slate-200 p-2"><input type="number" min="0" max="10" step="0.5" value={g3Eng} onChange={e => setG3Eng(e.target.value)} className="w-16 px-2 py-1 text-center bg-slate-50 border border-slate-200 rounded focus:outline-none focus:border-primary" /></td>
+                          <td className="border border-slate-200 p-2"><input type="number" min="0" max="10" step="0.5" value={g4Eng} onChange={e => setG4Eng(e.target.value)} className="w-16 px-2 py-1 text-center bg-slate-50 border border-slate-200 rounded focus:outline-none focus:border-primary" /></td>
+                          <td className="border border-slate-200 p-2"><input type="number" min="0" max="10" step="0.5" value={g5Eng} onChange={e => setG5Eng(e.target.value)} className="w-16 px-2 py-1 text-center bg-slate-50 border border-slate-200 rounded focus:outline-none focus:border-primary" /></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-xs font-bold text-slate-700">Điểm mạnh của con (năng khiếu, các giải cấp Quận, TP trở lên,...)</label>
+                    <textarea
+                      rows={3}
+                      value={strengths}
+                      onChange={e => setStrengths(e.target.value)}
+                      placeholder="Ví dụ: Giải Nhì môn Toán cấp Quận lớp 4, Giải Ba Tiếng Anh cấp Thành phố lớp 5, Năng khiếu vẽ..."
+                      className="w-full px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-primary focus:bg-white transition-colors resize-none"
+                    />
+                  </div>
+
                   <div className="flex justify-end pt-4 border-t border-slate-100">
                     <button 
                       type="button" 
@@ -1067,31 +1171,21 @@ export default function App() {
                             Bản sao Giấy khai sinh hợp lệ <span className="text-red-500">*</span>
                           </p>
                           <p className="text-[10px] text-slate-500 mt-0.5">Yêu cầu định dạng: PDF, JPG, PNG (Tép nhỏ hơn 5MB)</p>
-                          {birthCertRaw && (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-bold mt-1.5 bg-emerald-50 px-2 py-0.5 rounded">
-                              <Check className="w-3.5 h-3.5" /> {birthCertRaw.name}
-                            </span>
+                          {birthCertRaw.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {birthCertRaw.map((f, i) => (
+                                <span key={i} className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded">
+                                  {f.name} <button type="button" onClick={() => removeFile('birthCert', i)} className="text-red-500 hover:text-red-700 ml-0.5 font-bold cursor-pointer">&times;</button>
+                                </span>
+                              ))}
+                            </div>
                           )}
                         </div>
                       </div>
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        ref={birthCertInputRef}
-                        onChange={handleFileSelect('birthCert')}
-                        className="hidden"
-                      />
-                      <button 
-                        type="button"
-                        disabled={isUploading}
-                        onClick={() => triggerFileInput(birthCertInputRef)}
-                        className={`text-xs px-4 py-2 font-bold rounded-xl transition-all cursor-pointer ${
-                          isUploading ? 'bg-slate-300 text-slate-500 cursor-not-allowed' :
-                          birthCertRaw ? 'bg-emerald-600 text-white shadow-sm' : 'bg-primary hover:bg-primary-light text-white'
-                        }`}
-                      >
-                        {isUploading ? 'Đang tải...' : birthCertRaw ? 'Chọn tệp khác' : 'Chọn tệp đính kèm'}
-                      </button>
+                      <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" ref={birthCertInputRef} onChange={handleFileSelect('birthCert')} className="hidden" />
+                      <button type="button" disabled={isUploading} onClick={() => triggerFileInput(birthCertInputRef)}
+                        className={`text-xs px-4 py-2 font-bold rounded-xl transition-all cursor-pointer shrink-0 ${isUploading ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : birthCertRaw.length > 0 ? 'bg-emerald-600 text-white shadow-sm' : 'bg-primary hover:bg-primary-light text-white'}`}
+                      >{isUploading ? 'Đang tải...' : birthCertRaw.length > 0 ? 'Thêm tệp' : 'Chọn tệp đính kèm'}</button>
                     </div>
 
                     {/* Panel 2: Registration Form */}
@@ -1105,17 +1199,21 @@ export default function App() {
                             Phiếu đăng kí dự tuyển tuyển sinh <span className="text-red-500">*</span>
                           </p>
                           <p className="text-[10px] text-slate-500 mt-0.5">Phiếu đăng kí dự tuyển theo mẫu của nhà trường, có chữ kí của phụ huynh</p>
-                          {regFormRaw && (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-bold mt-1.5 bg-emerald-50 px-2 py-0.5 rounded">
-                              <Check className="w-3.5 h-3.5" /> {regFormRaw.name}
-                            </span>
+                          {regFormRaw.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {regFormRaw.map((f, i) => (
+                                <span key={i} className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded">
+                                  {f.name} <button type="button" onClick={() => removeFile('regForm', i)} className="text-red-500 hover:text-red-700 ml-0.5 font-bold cursor-pointer">&times;</button>
+                                </span>
+                              ))}
+                            </div>
                           )}
                         </div>
                       </div>
-                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" ref={regFormInputRef} onChange={handleFileSelect('regForm')} className="hidden" />
+                      <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" ref={regFormInputRef} onChange={handleFileSelect('regForm')} className="hidden" />
                       <button type="button" disabled={isUploading} onClick={() => triggerFileInput(regFormInputRef)}
-                        className={`text-xs px-4 py-2 font-bold rounded-xl transition-all cursor-pointer ${isUploading ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : regFormRaw ? 'bg-emerald-600 text-white shadow-sm' : 'bg-primary hover:bg-primary-light text-white'}`}
-                      >{isUploading ? 'Đang tải...' : regFormRaw ? 'Chọn tệp khác' : 'Chọn tệp đính kèm'}</button>
+                        className={`text-xs px-4 py-2 font-bold rounded-xl transition-all cursor-pointer shrink-0 ${isUploading ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : regFormRaw.length > 0 ? 'bg-emerald-600 text-white shadow-sm' : 'bg-primary hover:bg-primary-light text-white'}`}
+                      >{isUploading ? 'Đang tải...' : regFormRaw.length > 0 ? 'Thêm tệp' : 'Chọn tệp đính kèm'}</button>
                     </div>
 
                     {/* Panel 3: Primary Report Card */}
@@ -1129,17 +1227,21 @@ export default function App() {
                             Học bạ Tiểu học gốc (quyết định lớp 5) <span className="text-red-500">*</span>
                           </p>
                           <p className="text-[10px] text-slate-500 mt-0.5">Scan toàn bộ học bạ hoặc thư xác nhận kết quả học tập tiểu học</p>
-                          {reportCardRaw && (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-bold mt-1.5 bg-emerald-50 px-2 py-0.5 rounded">
-                              <Check className="w-3.5 h-3.5" /> {reportCardRaw.name}
-                            </span>
+                          {reportCardRaw.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {reportCardRaw.map((f, i) => (
+                                <span key={i} className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded">
+                                  {f.name} <button type="button" onClick={() => removeFile('reportCard', i)} className="text-red-500 hover:text-red-700 ml-0.5 font-bold cursor-pointer">&times;</button>
+                                </span>
+                              ))}
+                            </div>
                           )}
                         </div>
                       </div>
-                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" ref={reportCardInputRef} onChange={handleFileSelect('reportCard')} className="hidden" />
+                      <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" ref={reportCardInputRef} onChange={handleFileSelect('reportCard')} className="hidden" />
                       <button type="button" disabled={isUploading} onClick={() => triggerFileInput(reportCardInputRef)}
-                        className={`text-xs px-4 py-2 font-bold rounded-xl transition-all cursor-pointer ${isUploading ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : reportCardRaw ? 'bg-emerald-600 text-white shadow-sm' : 'bg-primary hover:bg-primary-light text-white'}`}
-                      >{isUploading ? 'Đang tải...' : reportCardRaw ? 'Chọn tệp khác' : 'Chọn tệp đính kèm'}</button>
+                        className={`text-xs px-4 py-2 font-bold rounded-xl transition-all cursor-pointer shrink-0 ${isUploading ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : reportCardRaw.length > 0 ? 'bg-emerald-600 text-white shadow-sm' : 'bg-primary hover:bg-primary-light text-white'}`}
+                      >{isUploading ? 'Đang tải...' : reportCardRaw.length > 0 ? 'Thêm tệp' : 'Chọn tệp đính kèm'}</button>
                     </div>
                   </div>
 
@@ -1157,6 +1259,10 @@ export default function App() {
                         Tôi cam đoan mọi thông tin kê khai trên là hoàn toàn chính xác thực tế, các tệp scan đính kèm là tài liệu gốc và tự chịu trách nhiệm hoàn toàn trước pháp luật của nước Cộng Hòa Xã Hội Chủ Nghĩa Việt Nam học kỳ này.
                       </span>
                     </label>
+                  </div>
+
+                  <div className="bg-red-500/5 border border-red-300/40 rounded-xl p-3 text-[11px] text-red-700 font-medium leading-relaxed">
+                    <span className="font-bold uppercase">Lưu ý:</span> Khi hệ thống yêu cầu xác thực Google, quý phụ huynh vui lòng bấm <span className="font-bold">'Nâng cao'</span> → <span className="font-bold">'Đi tới... (không an toàn)'</span> để tiếp tục. Đây là bước bảo mật cần thiết để tải hồ sơ lên Google Drive của nhà trường.
                   </div>
 
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-4 border-t border-slate-100 text-xs font-bold">
@@ -1189,7 +1295,7 @@ export default function App() {
               <ul className="list-disc pl-5 space-y-1 text-slate-600 font-medium">
                 <li>Mã số hồ sơ cá nhân sẽ được cấp ngay sau khi phụ huynh hoàn thiện form nộp thành công ở bước 3.</li>
                 <li>Vui lòng sao chép lại mã số này để sử dụng tra cứu trong suốt tiến trình xem kết quả đính kèm sau này.</li>
-                <li>Hệ thống máy chủ trực tuyến sẽ tự động tắt và ngắt tiếp nhận form đúng 17:00 ngày 30/06/2026. Phụ huynh nên nộp sớm.</li>
+                <li>Hệ thống máy chủ trực tuyến sẽ tự động tắt và ngắt tiếp nhận form đúng 18:00 ngày 03/07/2026. Phụ huynh nên nộp sớm.</li>
               </ul>
             </div>
           </div>
@@ -1299,36 +1405,24 @@ export default function App() {
                           Tài liệu đính kèm hồ sơ:
                         </p>
                         <div className="flex flex-wrap gap-2 mt-2">
-                          {checkedProfile.birthCertFile && (
-                            <a
-                              href={getFileDownloadLink(checkedProfile.birthCertFile) || '#'}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 text-[11px] text-primary font-bold bg-primary/5 px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
-                            >
-                              <FileText className="w-3.5 h-3.5" /> Giấy khai sinh
+                          {checkedProfile.birthCertFiles && checkedProfile.birthCertFiles.length > 0 && checkedProfile.birthCertFiles.map((f, i) => (
+                            <a key={i} href={getDriveFileDownloadUrl(f.id) || '#'} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-[11px] text-primary font-bold bg-primary/5 px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors">
+                              <FileText className="w-3.5 h-3.5" /> Giấy khai sinh {i + 1}
                             </a>
-                          )}
-                          {checkedProfile.registrationFormFile && (
-                            <a
-                              href={getFileDownloadLink(checkedProfile.registrationFormFile) || '#'}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 text-[11px] text-primary font-bold bg-primary/5 px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
-                            >
-                              <FileText className="w-3.5 h-3.5" /> Phiếu đăng kí dự tuyển
+                          ))}
+                          {checkedProfile.registrationFormFiles && checkedProfile.registrationFormFiles.length > 0 && checkedProfile.registrationFormFiles.map((f, i) => (
+                            <a key={i} href={getDriveFileDownloadUrl(f.id) || '#'} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-[11px] text-primary font-bold bg-primary/5 px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors">
+                              <FileText className="w-3.5 h-3.5" /> Phiếu ĐKDT {i + 1}
                             </a>
-                          )}
-                          {checkedProfile.reportCardFile && (
-                            <a
-                              href={getFileDownloadLink(checkedProfile.reportCardFile) || '#'}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 text-[11px] text-primary font-bold bg-primary/5 px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
-                            >
-                              <BookOpen className="w-3.5 h-3.5" /> Học bạ
+                          ))}
+                          {checkedProfile.reportCardFiles && checkedProfile.reportCardFiles.length > 0 && checkedProfile.reportCardFiles.map((f, i) => (
+                            <a key={i} href={getDriveFileDownloadUrl(f.id) || '#'} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-[11px] text-primary font-bold bg-primary/5 px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors">
+                              <BookOpen className="w-3.5 h-3.5" /> Học bạ {i + 1}
                             </a>
-                          )}
+                          ))}
                         </div>
                       </div>
 
@@ -1396,15 +1490,15 @@ export default function App() {
           <div className="flex flex-col gap-2 font-medium text-[11px] text-slate-500 md:items-end md:justify-end md:text-right">
             <div className="flex items-center gap-1.5 justify-start md:justify-end">
               <MapPin className="w-3.5 h-3.5 text-primary" />
-              <span>Địa chỉ: TDP Trung 7, Tây Tựu, Bắc Từ Liêm, Hà Nội</span>
+               <span>Địa chỉ: TDP Trung 7, phường Tây Tựu, Thành phố Hà Nội</span>
             </div>
             <div className="flex items-center gap-1.5 justify-start md:justify-end">
               <Phone className="w-3.5 h-3.5 text-primary" />
-              <span>Hotline: 024.xxxx.xxxx</span>
+               <span>Hotline: 098.631.6991</span>
             </div>
             <div className="flex items-center gap-1.5 justify-start md:justify-end">
               <Mail className="w-3.5 h-3.5 text-primary" />
-              <span>Email: tuyensinh@thcsbactuliem.edu.vn</span>
+              <span>Email: tuyensinh.thcsbactuliem@gmail.com</span>
             </div>
           </div>
           
