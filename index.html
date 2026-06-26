@@ -13,6 +13,18 @@
     <div id="root"></div>
     <script src="https://accounts.google.com/gsi/client"></script>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+  // Tự động kiểm tra khi phụ huynh vừa mở trang web
+  window.addEventListener('DOMContentLoaded', function() {
+    var ua = navigator.userAgent || navigator.vendor || window.opera;
+    // Kiểm tra xem có phải mở từ Zalo, Facebook App, Messenger, hay Viber không
+    var isInternalBrowser = /Zalo|FBAN|FBAV|Messenger|Viber/i.test(ua);
+
+    if (isInternalBrowser) {
+      alert("⚠️ LƯU Ý QUAN TRỌNG:\n\nĐể nộp được hồ sơ và tải ảnh minh chứng, quý phụ huynh vui lòng bấm vào biểu tượng DẤU 3 CHẤM (...) ở góc trên cùng bên phải màn hình, sau đó chọn 'MỞ BẰNG TRÌNH DUYỆT' (hoặc Mở bằng Safari/Chrome) để tránh gặp lỗi bảo mật của hệ thống.\n\nXin cảm ơn!");
+    }
+  });
+</script>
   </body>
 </html>
 
